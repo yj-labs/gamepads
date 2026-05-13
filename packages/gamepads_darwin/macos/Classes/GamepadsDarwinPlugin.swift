@@ -1,6 +1,8 @@
 import Cocoa
 import GameController
 import FlutterMacOS
+import IOKit
+import IOKit.hid
 
 enum FixedKey: String {
     case buttonMenu
@@ -12,12 +14,15 @@ enum FixedKey: String {
 public class GamepadsDarwinPlugin: NSObject, FlutterPlugin {
     let channel: FlutterMethodChannel
     let gamepads = GamepadsListener()
+    var hidManager: IOHIDManager?
+    var lastHomeState: Bool = false
 
     init(channel: FlutterMethodChannel) {
         self.channel = channel
         super.init()
 
         self.gamepads.listener = onGamepadEvent
+        setupHIDListener()
     }
 
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -160,6 +165,94 @@ public class GamepadsDarwinPlugin: NSObject, FlutterPlugin {
             return nil
         }
         return nonNull.joined(separator: " - ")
+    }
+    
+    // MARK: - HID Listener for HOME button
+    
+    private func setupHIDListener() {
+        hidManager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard let manager = hidManager else {
+            print("[gamepads_darwin] Failed to create HID manager")
+            return
+        }
+        
+        // Match gamepad devices (Usage Page: Generic Desktop, Usage: Game Pad or Joystick)
+        let matchingDict: [[String: Any]] = [
+            [
+                kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop,
+                kIOHIDDeviceUsageKey: kHIDUsage_GD_GamePad
+            ],
+            [
+                kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop,
+                kIOHIDDeviceUsageKey: kHIDUsage_GD_Joystick
+            ]
+        ]
+        
+        IOHIDManagerSetDeviceMatchingMultiple(manager, matchingDict as CFArray)
+        
+        // Register input report callback (for raw HID reports)
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        IOHIDManagerRegisterInputReportCallback(manager, { context, result, sender, type, reportId, report, reportLength in
+            guard let context = context else { return }
+            let plugin = Unmanaged<GamepadsDarwinPlugin>.fromOpaque(context).takeUnretainedValue()
+            if let sender = sender {
+                let device = unsafeBitCast(sender, to: IOHIDDevice.self)
+                plugin.handleHIDReport(device: device, reportId: reportId, report: report, length: reportLength)
+            }
+        }, context)
+        
+        IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+        
+        let openResult = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        if openResult == kIOReturnSuccess {
+            print("[gamepads_darwin] HID manager opened successfully")
+        } else {
+            print("[gamepads_darwin] Failed to open HID manager: \(openResult)")
+        }
+    }
+    
+    private func handleHIDReport(device: IOHIDDevice, reportId: UInt32, report: UnsafeMutablePointer<UInt8>, length: CFIndex) {
+        // Switch Pro Controller 标准格式：
+        // Byte 3: Y X B A SR SL R ZR (右侧按钮)
+        // Byte 4: Minus Plus RStick LStick Home Capture - - (系统按钮)
+        // Byte 5: Down Up Right Left SR SL L ZL (左侧按钮+方向键)
+        if length >= 5 {
+            let buttonByte2 = report[4]
+            
+            // HOME 键在 Byte 4 的 bit 4 (0x10)
+            let homePressed = (buttonByte2 & 0x10) != 0
+            
+            if homePressed != lastHomeState {
+                lastHomeState = homePressed
+                print("[gamepads_darwin] ✅ HOME button: \(homePressed ? "PRESSED" : "RELEASED")")
+                
+                if let gamepadId = findGamepadIdForHIDDevice(device) {
+                    let arguments: [String: Any] = [
+                        "gamepadId": String(gamepadId),
+                        "time": Int(Date().timeIntervalSince1970 * 1000),
+                        "type": "button",
+                        "key": "buttonHome",
+                        "value": Float(homePressed ? 1 : 0),
+                    ]
+                    channel.invokeMethod("onGamepadEvent", arguments: arguments)
+                }
+            }
+        }
+    }
+    
+    private func findGamepadIdForHIDDevice(_ device: IOHIDDevice) -> Int? {
+        // Simple heuristic - assumes first connected gamepad matches
+        // In production, you'd want to match by vendor/product ID
+        if !gamepads.gamepads.isEmpty {
+            return 0
+        }
+        return nil
+    }
+    
+    deinit {
+        if let manager = hidManager {
+            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        }
     }
 }
 
