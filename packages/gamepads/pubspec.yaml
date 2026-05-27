@@ -1,10 +1,9 @@
 name: gamepads
-resolution: workspace
 publish_to: none
 description: A Flutter plugin to handle gamepad input across multiple platforms.
 version: 0.1.10+2
-homepage: https://github.com/flame-engine/gamepads
-repository: https://github.com/flame-engine/gamepads/tree/main/packages/gamepads
+homepage: https://github.com/yj-labs/gamepads
+repository: https://github.com/yj-labs/gamepads/tree/dev/packages/gamepads
 
 flutter:
   plugin:
@@ -30,19 +29,40 @@ dependencies:
   flutter:
     sdk: flutter
   gamepads_android:
-    path: ../gamepads_android
+    git:
+      url: https://github.com/yj-labs/gamepads.git
+      ref: dev
+      path: packages/gamepads_android
   gamepads_darwin:
-    path: ../gamepads_darwin
+    git:
+      url: https://github.com/yj-labs/gamepads.git
+      ref: dev
+      path: packages/gamepads_darwin
   gamepads_ios:
-    path: ../gamepads_ios
+    git:
+      url: https://github.com/yj-labs/gamepads.git
+      ref: dev
+      path: packages/gamepads_ios
   gamepads_linux:
-    path: ../gamepads_linux
+    git:
+      url: https://github.com/yj-labs/gamepads.git
+      ref: dev
+      path: packages/gamepads_linux
   gamepads_platform_interface:
-    path: ../gamepads_platform_interface
+    git:
+      url: https://github.com/yj-labs/gamepads.git
+      ref: dev
+      path: packages/gamepads_platform_interface
   gamepads_web:
-    path: ../gamepads_web
+    git:
+      url: https://github.com/yj-labs/gamepads.git
+      ref: dev
+      path: packages/gamepads_web
   gamepads_windows:
-    path: ../gamepads_windows
+    git:
+      url: https://github.com/yj-labs/gamepads.git
+      ref: dev
+      path: packages/gamepads_windows
 
 dev_dependencies:
   flame_lint: ^1.4.1
