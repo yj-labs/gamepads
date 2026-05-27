@@ -23,10 +23,7 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
   gamepads_platform_interface:
-    git:
-      url: https://github.com/yj-labs/gamepads.git
-      ref: dev
-      path: packages/gamepads_platform_interface
+    path: ../gamepads_platform_interface
   plugin_platform_interface: ^2.1.8
   web: ^1.1.0
 
