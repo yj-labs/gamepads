@@ -1,8 +1,9 @@
 name: gamepads_android
+publish_to: none
 description: Android implementation of gamepads, a Flutter plugin to handle gamepad input across multiple platforms.
 version: 0.1.7
-homepage: https://github.com/flame-engine/gamepads
-repository: https://github.com/flame-engine/gamepads/tree/main/packages/gamepads_android
+homepage: https://github.com/yj-labs/gamepads
+repository: https://github.com/yj-labs/gamepads
 
 flutter:
   plugin:

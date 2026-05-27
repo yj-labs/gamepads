@@ -1,8 +1,9 @@
 name: gamepads_ios
+publish_to: none
 description: iOS implementation of gamepads, a Flutter plugin to handle gamepad input across multiple platforms.
 version: 0.1.3+3
-homepage: https://github.com/flame-engine/gamepads
-repository: https://github.com/flame-engine/gamepads/tree/main/packages/gamepads_ios
+homepage: https://github.com/yj-labs/gamepads
+repository: https://github.com/yj-labs/gamepads
 
 flutter:
   plugin:

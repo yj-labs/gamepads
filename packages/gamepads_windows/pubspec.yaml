@@ -1,8 +1,9 @@
 name: gamepads_windows
+publish_to: none
 description: Windows implementation of gamepads, a Flutter plugin to handle gamepad input across multiple platforms.
 version: 0.3.0+1
-homepage: https://github.com/flame-engine/gamepads
-repository: https://github.com/flame-engine/gamepads/tree/main/packages/gamepads_windows
+homepage: https://github.com/yj-labs/gamepads
+repository: https://github.com/yj-labs/gamepads
 
 flutter:
   plugin:

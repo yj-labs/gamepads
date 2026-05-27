@@ -1,8 +1,9 @@
 name: gamepads_web
+publish_to: none
 description: Web implementation of gamepads, a Flutter plugin to handle gamepad input across multiple platforms.
 version: 0.1.1+1
-homepage: https://github.com/flame-engine/gamepads
-repository: https://github.com/flame-engine/gamepads/tree/main/packages/gamepads_web
+homepage: https://github.com/yj-labs/gamepads
+repository: https://github.com/yj-labs/gamepads
 
 flutter:
   plugin:
