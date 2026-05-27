@@ -4,7 +4,11 @@ import android.hardware.input.InputManager
 import android.util.Log
 import android.view.InputDevice
 
-class DeviceListener(val isGamepadsInputDevice: (device: InputDevice) -> Boolean): InputManager.InputDeviceListener {
+class DeviceListener(
+    val isGamepadsInputDevice: (device: InputDevice) -> Boolean,
+    val onDeviceAdded: ((InputDevice) -> Unit)? = null,
+    val onDeviceRemoved: ((deviceId: Int, name: String) -> Unit)? = null,
+): InputManager.InputDeviceListener {
     private val devicesLookup: MutableMap<Int, InputDevice> = mutableMapOf()
     private val TAG = "ConnectionListener"
 
@@ -43,6 +47,7 @@ class DeviceListener(val isGamepadsInputDevice: (device: InputDevice) -> Boolean
             if (isGamepadsInputDevice(device)) {
                 Log.i(TAG, "${device.name} passed input device test")
                 devicesLookup[deviceId] = device
+                onDeviceAdded?.invoke(device)
             } else {
                 Log.e(TAG, "${device.name} failed input device test")
             }
@@ -50,8 +55,9 @@ class DeviceListener(val isGamepadsInputDevice: (device: InputDevice) -> Boolean
     }
 
     override fun onInputDeviceRemoved(deviceId: Int) {
-        val device: InputDevice? = InputDevice.getDevice(deviceId)
+        val name = devicesLookup[deviceId]?.name ?: "Unknown"
         devicesLookup.remove(deviceId)
+        onDeviceRemoved?.invoke(deviceId, name)
     }
 
     override fun onInputDeviceChanged(deviceId: Int) {

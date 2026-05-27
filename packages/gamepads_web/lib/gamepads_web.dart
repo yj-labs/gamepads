@@ -118,10 +118,17 @@ class GamepadsWeb extends GamepadsPlatformInterface {
       'gamepadconnected',
       (web.Event event) {
         _gamepadCount++;
+        final jsGamepad = (event as web.GamepadEvent).gamepad;
+        final gamepadId = jsGamepad.index.toString();
+        final name = jsGamepad.id;
+        _gamepadConnectedController.add(
+          GamepadController(
+            id: gamepadId,
+            name: name,
+            plugin: this,
+          ),
+        );
         if (_gamepadCount == 1) {
-          // The game pad state for web is not event driven. We need to
-          // query the game pad state by ourself.
-          // By default we set the query interval is 8 ms.
           _gamepadPollingTimer = Timer.periodic(
             const Duration(milliseconds: 8),
             (timer) {
@@ -138,6 +145,14 @@ class GamepadsWeb extends GamepadsPlatformInterface {
         _gamepadCount--;
         final jsGamepad = (event as web.GamepadEvent).gamepad;
         final gamepadId = jsGamepad.index.toString();
+        final name = jsGamepad.id;
+        _gamepadDisconnectedController.add(
+          GamepadController(
+            id: gamepadId,
+            name: name,
+            plugin: this,
+          ),
+        );
         _gamepadIds.remove(gamepadId);
         _lastGamepadStates.remove(gamepadId);
         if (_gamepadCount == 0) {
@@ -166,12 +181,28 @@ class GamepadsWeb extends GamepadsPlatformInterface {
   final StreamController<GamepadEvent> _gamepadEventsStreamController =
       StreamController<GamepadEvent>.broadcast();
 
+  final StreamController<GamepadController> _gamepadConnectedController =
+      StreamController<GamepadController>.broadcast();
+
+  final StreamController<GamepadController> _gamepadDisconnectedController =
+      StreamController<GamepadController>.broadcast();
+
   @override
   Stream<GamepadEvent> get gamepadEventsStream =>
       _gamepadEventsStreamController.stream;
 
+  @override
+  Stream<GamepadController> get gamepadConnectedStream =>
+      _gamepadConnectedController.stream;
+
+  @override
+  Stream<GamepadController> get gamepadDisconnectedStream =>
+      _gamepadDisconnectedController.stream;
+
   @mustCallSuper
   Future<void> dispose() async {
     _gamepadEventsStreamController.close();
+    _gamepadConnectedController.close();
+    _gamepadDisconnectedController.close();
   }
 }

@@ -60,7 +60,21 @@ class GamepadsAndroidPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
 
   fun onAttachedToActivityShared(activity: Activity) {
     val compatibleActivity = activity as GamepadsCompatibleActivity
-    devices = DeviceListener { compatibleActivity.isGamepadsInputDevice(it) }
+    devices = DeviceListener(
+        isGamepadsInputDevice = { compatibleActivity.isGamepadsInputDevice(it) },
+        onDeviceAdded = { device ->
+            channel.invokeMethod("onGamepadConnected", mapOf(
+                "id" to device.id.toString(),
+                "name" to device.name,
+            ))
+        },
+        onDeviceRemoved = { deviceId, name ->
+            channel.invokeMethod("onGamepadDisconnected", mapOf(
+                "id" to deviceId.toString(),
+                "name" to name,
+            ))
+        },
+    )
     events = EventListener()
     compatibleActivity.registerInputDeviceListener(devices, handler = null)
     compatibleActivity.registerKeyEventHandler { event ->

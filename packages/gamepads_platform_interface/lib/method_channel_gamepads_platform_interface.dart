@@ -29,6 +29,14 @@ class MethodChannelGamepadsPlatformInterface extends GamepadsPlatformInterface {
     switch (call.method) {
       case 'onGamepadEvent':
         emitGamepadEvent(GamepadEvent.parse(call.args));
+      case 'onGamepadConnected':
+        _gamepadConnectedController.add(
+          GamepadController.parse(call.args, this),
+        );
+      case 'onGamepadDisconnected':
+        _gamepadDisconnectedController.add(
+          GamepadController.parse(call.args, this),
+        );
     }
   }
 
@@ -39,12 +47,28 @@ class MethodChannelGamepadsPlatformInterface extends GamepadsPlatformInterface {
   final StreamController<GamepadEvent> _gamepadEventsStreamController =
       StreamController<GamepadEvent>.broadcast();
 
+  final StreamController<GamepadController> _gamepadConnectedController =
+      StreamController<GamepadController>.broadcast();
+
+  final StreamController<GamepadController> _gamepadDisconnectedController =
+      StreamController<GamepadController>.broadcast();
+
   @override
   Stream<GamepadEvent> get gamepadEventsStream =>
       _gamepadEventsStreamController.stream;
 
+  @override
+  Stream<GamepadController> get gamepadConnectedStream =>
+      _gamepadConnectedController.stream;
+
+  @override
+  Stream<GamepadController> get gamepadDisconnectedStream =>
+      _gamepadDisconnectedController.stream;
+
   @mustCallSuper
   Future<void> dispose() async {
     _gamepadEventsStreamController.close();
+    _gamepadConnectedController.close();
+    _gamepadDisconnectedController.close();
   }
 }

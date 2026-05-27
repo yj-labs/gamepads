@@ -4,6 +4,8 @@ import GameController
 class GamepadsListener {
     var gamepads: [GCExtendedGamepad] = []
     var listener: ((Int, GCExtendedGamepad, GCControllerElement) -> Void)?
+    var connectListener: ((Int, GCExtendedGamepad) -> Void)?
+    var disconnectListener: ((Int, GCExtendedGamepad) -> Void)?
 
     init() {
         NotificationCenter.default.addObserver(
@@ -35,12 +37,17 @@ class GamepadsListener {
                         listener(gamepadId, gamepad, element);
                     }
                 }
+                connectListener?(gamepadId, gamepad)
             }
         }
     }
  
     @objc private func joystickDidDisconnect(notification: NSNotification) {
         if let controller = notification.object as? GCController {
+            if let gamepad = controller.extendedGamepad {
+                let gamepadId = gamepads.firstIndex(of: gamepad) ?? -1
+                disconnectListener?(gamepadId, gamepad)
+            }
             gamepads.removeAll(where: { $0 == controller.extendedGamepad })
         }
     }

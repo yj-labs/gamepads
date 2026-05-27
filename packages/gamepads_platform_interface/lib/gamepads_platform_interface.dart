@@ -21,6 +21,12 @@ abstract class GamepadsPlatformInterface extends PlatformInterface {
 
   Stream<GamepadEvent> get gamepadEventsStream;
 
+  /// Stream of gamepad connection events.
+  Stream<GamepadController> get gamepadConnectedStream;
+
+  /// Stream of gamepad disconnection events.
+  Stream<GamepadController> get gamepadDisconnectedStream;
+
   Stream<GamepadEvent> eventsByGamepad(String gamepadId) =>
       gamepadEventsStream.where((event) => event.gamepadId == gamepadId);
 }

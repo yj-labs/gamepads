@@ -35,6 +35,14 @@ class Gamepads {
 
   static Stream<GamepadEvent> get events => _platform.gamepadEventsStream;
 
+  /// A stream that emits a [GamepadController] whenever a gamepad is connected.
+  static Stream<GamepadController> get onConnected =>
+      _platform.gamepadConnectedStream;
+
+  /// A stream that emits a [GamepadController] whenever a gamepad is disconnected.
+  static Stream<GamepadController> get onDisconnected =>
+      _platform.gamepadDisconnectedStream;
+
   /// A stream of normalized gamepad events.
   ///
   /// A [GamepadNormalizer] is auto-created on first access using the

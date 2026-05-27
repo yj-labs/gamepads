@@ -22,6 +22,20 @@ public class GamepadsDarwinPlugin: NSObject, FlutterPlugin {
         super.init()
 
         self.gamepads.listener = onGamepadEvent
+        self.gamepads.connectListener = { [weak self] id, gamepad in
+            guard let self = self else { return }
+            self.channel.invokeMethod("onGamepadConnected", arguments: [
+                "id": String(id),
+                "name": self.getName(gamepad: gamepad),
+            ])
+        }
+        self.gamepads.disconnectListener = { [weak self] id, gamepad in
+            guard let self = self else { return }
+            self.channel.invokeMethod("onGamepadDisconnected", arguments: [
+                "id": String(id),
+                "name": self.getName(gamepad: gamepad),
+            ])
+        }
         setupHIDListener()
     }
 

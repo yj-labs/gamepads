@@ -49,13 +49,24 @@ public class GamepadsIosPlugin: NSObject, FlutterPlugin {
   @objc private func controllerConnected(notification: Notification) {
     if let controller = notification.object as? GCController {
       setupController(controller)
+      if let id = controllerIds[controller] {
+        channel.invokeMethod("onGamepadConnected", arguments: [
+          "id": String(id),
+          "name": controller.vendorName ?? "Unknown",
+        ])
+      }
     }
   }
 
   @objc private func controllerDisconnected(notification: Notification) {
     if let controller = notification.object as? GCController {
+      if let id = controllerIds[controller] {
+        channel.invokeMethod("onGamepadDisconnected", arguments: [
+          "id": String(id),
+          "name": controller.vendorName ?? "Unknown",
+        ])
+      }
       controllerIds.removeValue(forKey: controller)
-      // Optional: send disconnection event
     }
   }
 
