@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import CoreHaptics
 import GameController
 
 public class GamepadsIosPlugin: NSObject, FlutterPlugin {
@@ -41,6 +42,8 @@ public class GamepadsIosPlugin: NSObject, FlutterPlugin {
         ]
       }
       result(gamepads)
+    } else if call.method == "rumble" {
+      handleRumble(call: call, result: result)
     } else {
       result(FlutterMethodNotImplemented)
     }
@@ -139,5 +142,49 @@ public class GamepadsIosPlugin: NSObject, FlutterPlugin {
       "value": value,
       "time": Int(Date().timeIntervalSince1970 * 1000)
     ])
+  }
+
+  // MARK: - Rumble / Haptics
+
+  private func handleRumble(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard #available(iOS 14.0, *) else {
+      result(false)
+      return
+    }
+    guard let args = call.arguments as? [String: Any],
+          let gamepadIdStr = args["gamepadId"] as? String,
+          let gamepadId = Int(gamepadIdStr) else {
+      result(false)
+      return
+    }
+    let controller = controllerIds.first(where: { $0.value == gamepadId })?.key
+    guard let haptics = controller?.haptics else {
+      result(false)
+      return
+    }
+    let weakMotor = (args["weakMotor"] as? Double) ?? 0.5
+    let strongMotor = (args["strongMotor"] as? Double) ?? 0.5
+    let durationMs = (args["durationMs"] as? Int) ?? 200
+    let durationSec = Double(durationMs) / 1000.0
+
+    for locality: GCHapticsLocality in [.leftHandle, .rightHandle] {
+      guard let engine = try? haptics.createEngine(withLocality: locality) else { continue }
+      let intensity: Float = locality == .leftHandle ? Float(strongMotor) : Float(weakMotor)
+      let event = CHHapticEvent(
+        eventType: .hapticContinuous,
+        parameters: [
+          CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+          CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5),
+        ],
+        relativeTime: 0,
+        duration: durationSec
+      )
+      if let pattern = try? CHHapticPattern(events: [event], parameters: []),
+         let player = try? engine.makePlayer(with: pattern) {
+        try? engine.start()
+        try? player.start(atTime: 0)
+      }
+    }
+    result(true)
   }
 }

@@ -4,6 +4,10 @@ import androidx.annotation.NonNull
 import android.app.Activity
 import android.content.Context
 import android.hardware.input.InputManager
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -25,6 +29,7 @@ class GamepadsAndroidPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
   private lateinit var channel : MethodChannel
   private lateinit var devices : DeviceListener
   private lateinit var events : EventListener
+  private var activity: Activity? = null
 
   private fun listGamepads(): List<Map<String, String>>  {
     return devices.getDevices().map { device ->
@@ -46,11 +51,52 @@ class GamepadsAndroidPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
   }
 
   override fun onMethodCall(call: MethodCall, result: Result) {
-    if (call.method == "listGamepads") {
-      result.success(listGamepads())
-    } else {
-      result.notImplemented()
+    when (call.method) {
+      "listGamepads" -> result.success(listGamepads())
+      "rumble" -> handleRumble(call, result)
+      else -> result.notImplemented()
     }
+  }
+
+  private fun handleRumble(call: MethodCall, result: Result) {
+    val gamepadIdStr = call.argument<String>("gamepadId") ?: run { result.success(false); return }
+    val gamepadId = gamepadIdStr.toIntOrNull() ?: run { result.success(false); return }
+    val weakMotor = call.argument<Double>("weakMotor") ?: 0.5
+    val strongMotor = call.argument<Double>("strongMotor") ?: 0.5
+    val durationMs = call.argument<Int>("durationMs") ?: 200
+
+    val device = devices.getDevices()[gamepadId]
+    if (device == null) {
+      result.success(false)
+      return
+    }
+
+    // Try InputDevice vibrator first (API 31+)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      val vibratorManager = device.vibratorManager
+      val vibrators = vibratorManager.vibratorIds
+      if (vibrators.isNotEmpty()) {
+        val amplitude = ((strongMotor + weakMotor) / 2.0 * 255).toInt().coerceIn(1, 255)
+        val effect = VibrationEffect.createOneShot(durationMs.toLong(), amplitude)
+        vibrators.forEach { id -> vibratorManager.getVibrator(id).vibrate(effect) }
+        result.success(true)
+        return
+      }
+    }
+
+    // Fallback: device vibrator (API 26+)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      @Suppress("DEPRECATION")
+      val vibrator = device.vibrator
+      if (vibrator.hasVibrator()) {
+        val amplitude = ((strongMotor + weakMotor) / 2.0 * 255).toInt().coerceIn(1, 255)
+        vibrator.vibrate(VibrationEffect.createOneShot(durationMs.toLong(), amplitude))
+        result.success(true)
+        return
+      }
+    }
+
+    result.success(false)
   }
 
   // Activity Aware
@@ -59,6 +105,7 @@ class GamepadsAndroidPlugin: FlutterPlugin, MethodCallHandler, ActivityAware {
   }
 
   fun onAttachedToActivityShared(activity: Activity) {
+    this.activity = activity
     val compatibleActivity = activity as GamepadsCompatibleActivity
     devices = DeviceListener(
         isGamepadsInputDevice = { compatibleActivity.isGamepadsInputDevice(it) },

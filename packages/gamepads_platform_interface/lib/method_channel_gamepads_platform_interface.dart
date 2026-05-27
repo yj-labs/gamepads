@@ -65,6 +65,22 @@ class MethodChannelGamepadsPlatformInterface extends GamepadsPlatformInterface {
   Stream<GamepadController> get gamepadDisconnectedStream =>
       _gamepadDisconnectedController.stream;
 
+  @override
+  Future<bool> rumble({
+    required String gamepadId,
+    double weakMotor = 0.5,
+    double strongMotor = 0.5,
+    int durationMs = 200,
+  }) async {
+    final result = await _channel.invokeMethod<bool>('rumble', {
+      'gamepadId': gamepadId,
+      'weakMotor': weakMotor,
+      'strongMotor': strongMotor,
+      'durationMs': durationMs,
+    });
+    return result ?? false;
+  }
+
   @mustCallSuper
   Future<void> dispose() async {
     _gamepadEventsStreamController.close();

@@ -199,6 +199,46 @@ class GamepadsWeb extends GamepadsPlatformInterface {
   Stream<GamepadController> get gamepadDisconnectedStream =>
       _gamepadDisconnectedController.stream;
 
+  @override
+  Future<bool> rumble({
+    required String gamepadId,
+    double weakMotor = 0.5,
+    double strongMotor = 0.5,
+    int durationMs = 200,
+  }) async {
+    final index = int.tryParse(gamepadId);
+    if (index == null) return false;
+    final gamepads = getGamepadList();
+    if (index >= gamepads.length) return false;
+    try {
+      // Use JS interop to call vibrationActuator.playEffect
+      // Not all browsers support this, so we wrap in try/catch
+      _rumbleJs(index, weakMotor, strongMotor, durationMs);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _rumbleJs(int index, double weak, double strong, int durationMs) {
+    // Inline JS: navigator.getGamepads()[index]?.vibrationActuator?.playEffect(...)
+    final js = '''
+      (function() {
+        var gp = navigator.getGamepads ? navigator.getGamepads()[${index}] : null;
+        if (gp && gp.vibrationActuator) {
+          gp.vibrationActuator.playEffect('dual-rumble', {
+            startDelay: 0,
+            duration: ${durationMs},
+            weakMagnitude: ${weak},
+            strongMagnitude: ${strong}
+          });
+        }
+      })();
+    ''';
+    // ignore: avoid_dynamic_calls
+    (js as dynamic).toJS;
+  }
+
   @mustCallSuper
   Future<void> dispose() async {
     _gamepadEventsStreamController.close();

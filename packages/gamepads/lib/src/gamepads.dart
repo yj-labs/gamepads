@@ -43,6 +43,27 @@ class Gamepads {
   static Stream<GamepadController> get onDisconnected =>
       _platform.gamepadDisconnectedStream;
 
+  /// Sends a rumble/haptic effect to the specified gamepad.
+  ///
+  /// [gamepadId] — the id from [GamepadController.id].
+  /// [weakMotor] — high-frequency (right) motor intensity, 0.0–1.0.
+  /// [strongMotor] — low-frequency (left) motor intensity, 0.0–1.0.
+  /// [durationMs] — duration in milliseconds.
+  ///
+  /// Returns true if the platform accepted the request.
+  static Future<bool> rumble({
+    required String gamepadId,
+    double weakMotor = 0.5,
+    double strongMotor = 0.5,
+    int durationMs = 200,
+  }) =>
+      _platform.rumble(
+        gamepadId: gamepadId,
+        weakMotor: weakMotor,
+        strongMotor: strongMotor,
+        durationMs: durationMs,
+      );
+
   /// A stream of normalized gamepad events.
   ///
   /// A [GamepadNormalizer] is auto-created on first access using the

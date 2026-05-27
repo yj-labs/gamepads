@@ -1,4 +1,5 @@
 import Cocoa
+import CoreHaptics
 import GameController
 import FlutterMacOS
 import IOKit
@@ -49,6 +50,8 @@ public class GamepadsDarwinPlugin: NSObject, FlutterPlugin {
         switch call.method {
         case "listGamepads":
             result(listGamepads())
+        case "rumble":
+            handleRumble(call: call, result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -167,6 +170,52 @@ public class GamepadsDarwinPlugin: NSObject, FlutterPlugin {
         return gamepads.gamepads.enumerated().map { (index, gamepad) in
             [ "id": String(index), "name": getName(gamepad: gamepad) ]
         }
+    }
+
+    // MARK: - Rumble / Haptics
+
+    private func handleRumble(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard #available(macOS 11.0, *) else {
+            result(false)
+            return
+        }
+        guard let args = call.arguments as? [String: Any],
+              let gamepadIdStr = args["gamepadId"] as? String,
+              let gamepadId = Int(gamepadIdStr),
+              gamepadId >= 0 && gamepadId < gamepads.gamepads.count else {
+            result(false)
+            return
+        }
+        let gamepad = gamepads.gamepads[gamepadId]
+        guard let haptics = gamepad.controller?.haptics else {
+            result(false)
+            return
+        }
+        let weakMotor = (args["weakMotor"] as? Double) ?? 0.5
+        let strongMotor = (args["strongMotor"] as? Double) ?? 0.5
+        let durationMs = (args["durationMs"] as? Int) ?? 200
+
+        // Play on both motors simultaneously
+        for locality: GCHapticsLocality in [.leftHandle, .rightHandle] {
+            guard let engine = try? haptics.createEngine(withLocality: locality) else { continue }
+            let intensity: Float = locality == .leftHandle ? Float(strongMotor) : Float(weakMotor)
+            let durationSec = Double(durationMs) / 1000.0
+            let event = CHHapticEvent(
+                eventType: .hapticContinuous,
+                parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5),
+                ],
+                relativeTime: 0,
+                duration: durationSec
+            )
+            if let pattern = try? CHHapticPattern(events: [event], parameters: []),
+               let player = try? engine.makePlayer(with: pattern) {
+                try? engine.start()
+                try? player.start(atTime: 0)
+            }
+        }
+        result(true)
     }
 
     private func maybeConcat(_ string1: String?, _ string2: String) -> String {
