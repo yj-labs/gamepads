@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:js_interop';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:gamepads_platform_interface/api/gamepad_controller.dart';
@@ -221,23 +220,18 @@ class GamepadsWeb extends GamepadsPlatformInterface {
   }
 
   void _rumbleJs(int index, double weak, double strong, int durationMs) {
-    // Inline JS: navigator.getGamepads()[index]?.vibrationActuator?.playEffect(...)
-    final js = '''
-      (function() {
-        var gp = navigator.getGamepads ? navigator.getGamepads()[${index}] : null;
-        if (gp && gp.vibrationActuator) {
-          gp.vibrationActuator.playEffect('dual-rumble', {
-            startDelay: 0,
-            duration: ${durationMs},
-            weakMagnitude: ${weak},
-            strongMagnitude: ${strong}
-          });
-        }
-      })();
-    ''';
-    // ignore: avoid_dynamic_calls
-    (js as dynamic).toJS;
+    final code = '(function(){'
+        'var gp=navigator.getGamepads?navigator.getGamepads()[$index]:null;'
+        'if(gp&&gp.vibrationActuator){'
+        "gp.vibrationActuator.playEffect('dual-rumble',{"
+        'startDelay:0,duration:$durationMs,'
+        'weakMagnitude:$weak,strongMagnitude:$strong});}'
+        '})();';
+    _evalJs(code.toJS);
   }
+
+  @JS('eval')
+  external void _evalJs(JSString code);
 
   @mustCallSuper
   Future<void> dispose() async {

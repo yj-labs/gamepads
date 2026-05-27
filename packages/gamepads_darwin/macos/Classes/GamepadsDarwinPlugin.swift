@@ -174,20 +174,11 @@ public class GamepadsDarwinPlugin: NSObject, FlutterPlugin {
 
     // MARK: - Rumble / Haptics
 
+    private var rumbleCounter: UInt8 = 0
+    private var rumbleTimer: Timer?
+
     private func handleRumble(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(macOS 11.0, *) else {
-            result(false)
-            return
-        }
-        guard let args = call.arguments as? [String: Any],
-              let gamepadIdStr = args["gamepadId"] as? String,
-              let gamepadId = Int(gamepadIdStr),
-              gamepadId >= 0 && gamepadId < gamepads.gamepads.count else {
-            result(false)
-            return
-        }
-        let gamepad = gamepads.gamepads[gamepadId]
-        guard let haptics = gamepad.controller?.haptics else {
+        guard let args = call.arguments as? [String: Any] else {
             result(false)
             return
         }
@@ -195,27 +186,136 @@ public class GamepadsDarwinPlugin: NSObject, FlutterPlugin {
         let strongMotor = (args["strongMotor"] as? Double) ?? 0.5
         let durationMs = (args["durationMs"] as? Int) ?? 200
 
-        // Play on both motors simultaneously
-        for locality: GCHapticsLocality in [.leftHandle, .rightHandle] {
+        if sendHIDRumble(weakMotor: weakMotor, strongMotor: strongMotor, durationMs: durationMs) {
+            result(true)
+            return
+        }
+
+        result(false)
+    }
+
+    @available(macOS 11.0, *)
+    private func tryGCHaptics(haptics: GCDeviceHaptics, weak: Double, strong: Double, durationMs: Int) -> Bool {
+        let localities: [GCHapticsLocality] = [.leftHandle, .rightHandle, .default]
+        var played = false
+        for locality in localities {
             guard let engine = try? haptics.createEngine(withLocality: locality) else { continue }
-            let intensity: Float = locality == .leftHandle ? Float(strongMotor) : Float(weakMotor)
+            let intensity: Float = locality == .leftHandle ? Float(strong) : Float(weak)
             let durationSec = Double(durationMs) / 1000.0
-            let event = CHHapticEvent(
-                eventType: .hapticContinuous,
-                parameters: [
-                    CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
-                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5),
-                ],
-                relativeTime: 0,
-                duration: durationSec
-            )
-            if let pattern = try? CHHapticPattern(events: [event], parameters: []),
-               let player = try? engine.makePlayer(with: pattern) {
-                try? engine.start()
-                try? player.start(atTime: 0)
+            let events: [CHHapticEvent] = [
+                CHHapticEvent(
+                    eventType: .hapticContinuous,
+                    parameters: [
+                        CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+                        CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5),
+                    ],
+                    relativeTime: 0,
+                    duration: durationSec
+                ),
+            ]
+            do {
+                let pattern = try CHHapticPattern(events: events, parameters: [])
+                let player = try engine.makePlayer(with: pattern)
+                try engine.start()
+                try player.start(atTime: 0)
+                played = true
+                if locality == .default { break }
+            } catch {}
+        }
+        return played
+    }
+
+    /// Encode rumble amplitude into Switch Pro Controller 4-byte rumble data
+    /// Based on Nintendo Switch reverse engineering documentation
+    /// High frequency: ~320Hz, Low frequency: ~160Hz
+    private func encodeRumble(amplitude: Double) -> [UInt8] {
+        if amplitude <= 0 {
+            return [0x00, 0x01, 0x40, 0x40] // neutral/stop
+        }
+        let amp = max(0.0, min(1.0, amplitude))
+        // High frequency amplitude (320Hz)
+        let hfAmp = UInt16(amp * 0x64)
+        let hfFreq: UInt8 = 0x88 // ~320Hz
+        // Low frequency amplitude (160Hz)
+        let lfAmp = UInt8(amp * 0x32)
+        let lfFreq: UInt8 = 0x61 // ~160Hz
+        return [
+            UInt8((hfAmp >> 8) & 0xFF) | (hfFreq >> 1),
+            UInt8(hfAmp & 0xFF),
+            lfAmp | 0x40,
+            lfFreq,
+        ]
+    }
+
+    /// Send rumble via IOHIDManager output report (Switch Pro Controller)
+    private func sendHIDRumble(weakMotor: Double, strongMotor: Double, durationMs: Int) -> Bool {
+        guard let manager = hidManager,
+              let deviceSet = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>,
+              !deviceSet.isEmpty else {
+            return false
+        }
+
+        let leftAmp = UInt8(min(255, Int(strongMotor * 255)))
+        let rightAmp = UInt8(min(255, Int(weakMotor * 255)))
+        rumbleCounter = (rumbleCounter + 1) & 0x0F
+
+        // Switch Pro Controller rumble encoding
+        // Each motor uses 4 bytes: [hf_amp_hi | hf_freq_hi, hf_freq_lo, lf_amp | lf_freq_hi, lf_freq_lo]
+        // Standard frequency: ~320Hz high, ~160Hz low
+        // Amplitude is encoded in the high nibble of bytes 0 and 2
+        let leftData  = encodeRumble(amplitude: strongMotor)
+        let rightData = encodeRumble(amplitude: weakMotor)
+
+        var sent = false
+        sendRumblePacket(leftData: leftData, rightData: rightData)
+        sent = true
+
+        if sent {
+            // Switch Pro requires repeated packets to sustain rumble (~15ms interval)
+            rumbleTimer?.invalidate()
+            let leftDataCopy = leftData
+            let rightDataCopy = rightData
+            rumbleTimer = Timer.scheduledTimer(withTimeInterval: 0.015, repeats: true) { [weak self] _ in
+                self?.sendRumblePacket(leftData: leftDataCopy, rightData: rightDataCopy)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(durationMs)) { [weak self] in
+                self?.stopHIDRumble()
             }
         }
-        result(true)
+        return sent
+    }
+
+    private func stopHIDRumble() {
+        rumbleTimer?.invalidate()
+        rumbleTimer = nil
+        guard let manager = hidManager,
+              let deviceSet = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else { return }
+        let stopLeft: [UInt8] = [0x00, 0x01, 0x40, 0x40]
+        let stopRight: [UInt8] = [0x00, 0x01, 0x40, 0x40]
+        sendRumblePacket(leftData: stopLeft, rightData: stopRight)
+    }
+
+    private func sendRumblePacket(leftData: [UInt8], rightData: [UInt8]) {
+        guard let manager = hidManager,
+              let deviceSet = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else { return }
+        rumbleCounter = (rumbleCounter + 1) & 0x0F
+        var report: [UInt8] = [
+            0x10, rumbleCounter,
+            leftData[0], leftData[1], leftData[2], leftData[3],
+            rightData[0], rightData[1], rightData[2], rightData[3],
+        ]
+        let count = report.count
+        for device in deviceSet {
+            report.withUnsafeMutableBytes { ptr in
+                _ = IOHIDDeviceSetReport(
+                    device,
+                    kIOHIDReportTypeOutput,
+                    CFIndex(0x10),
+                    ptr.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                    count
+                )
+            }
+        }
     }
 
     private func maybeConcat(_ string1: String?, _ string2: String) -> String {

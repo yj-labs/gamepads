@@ -179,10 +179,13 @@ public class GamepadsIosPlugin: NSObject, FlutterPlugin {
         relativeTime: 0,
         duration: durationSec
       )
-      if let pattern = try? CHHapticPattern(events: [event], parameters: []),
-         let player = try? engine.makePlayer(with: pattern) {
-        try? engine.start()
-        try? player.start(atTime: 0)
+      guard let pattern = try? CHHapticPattern(events: [event], parameters: []),
+            let player = try? engine.makePlayer(with: pattern) else { continue }
+      try? engine.start()
+      try? player.start(atTime: 0)
+      // Stop engine after duration to prevent indefinite vibration
+      DispatchQueue.main.asyncAfter(deadline: .now() + durationSec + 0.05) {
+        try? engine.stop()
       }
     }
     result(true)

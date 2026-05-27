@@ -15,6 +15,8 @@ class IosMapping extends PlatformMapping {
     'buttonY': GamepadButton.y,
     'leftShoulder': GamepadButton.leftBumper,
     'rightShoulder': GamepadButton.rightBumper,
+    // Triggers are normally analog on iOS, but keep here as fallback
+    // in case some controllers report them as button type
     'leftTrigger': GamepadButton.leftTrigger,
     'rightTrigger': GamepadButton.rightTrigger,
     'buttonMenu': GamepadButton.start,
@@ -29,6 +31,9 @@ class IosMapping extends PlatformMapping {
     'leftStick - yAxis': GamepadAxis.leftStickY,
     'rightStick - xAxis': GamepadAxis.rightStickX,
     'rightStick - yAxis': GamepadAxis.rightStickY,
+    // Triggers are reported as analog on iOS
+    'leftTrigger': GamepadAxis.leftTrigger,
+    'rightTrigger': GamepadAxis.rightTrigger,
   };
 
   // D-pad is reported as analog axes on iOS.
